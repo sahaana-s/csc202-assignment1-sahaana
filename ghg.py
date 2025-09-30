@@ -13,8 +13,6 @@ class GlobeRect:
     hi_lat: float          
     west_long: float       
     east_long: float       
-    # NOTE: per spec, we don't enforce "lo_lat < hi_lat" here;
-    # tests/functions may raise ValueError on zero area where relevant.
 
 @dataclass(frozen=True)
 class Region:
@@ -31,24 +29,27 @@ class RegionCondition:
 
 EARTH_RADIUS_KM = 6371.0     
 
+# tons CO2e per person per year in given region
 def emissions_per_capita(rc: RegionCondition) -> float:
     if rc.pop == 0:
         raise ValueError("Population is zero - emissions per capita undefined")
     return rc.ghg_rate / rc.pop
 
+# area on the spherical Earth (in square kilometers) of the latitude-longitude "rectangle"
 def area(gr: GlobeRect) -> float:
     y1 = math.radians(gr.lo_lat)
     y2 = math.radians(gr.hi_lat)
     d = math.radians((gr.east_long - gr.west_long) % 360.0)  # 0..2π, equal longs -> 0
     return (EARTH_RADIUS_KM ** 2) * abs(math.sin(y2) - math.sin(y1)) * d
 
+# tons CO2e per person per square km in given region
 def emissions_per_square_km(rc: RegionCondition) -> float:
     a = area(rc.region.rect)
     if a == 0:
         raise ValueError("Area is zero - emissions per square km undefined")
     return rc.ghg_rate / a
 
-
+# returns the name of the region that has the most people per square kilometer
 def densest(rcs: List[RegionCondition]) -> str:
     if not rcs:
         raise ValueError("Empty list - no regions to compare.")
@@ -75,11 +76,13 @@ TERRAIN_GROWTH: Dict[str, float] = {
     "other": 0.00003,
 }
 
-def growth_factor(terrain: str, years: int) -> float:
+# returns the compounding growth factor based on the terrain and number of years
+def growth_factor(terrain: str, n: int) -> float:
     r = TERRAIN_GROWTH[terrain]
     # compound annually
-    return (1.0 + r) ** years
+    return (1.0 + r) ** n
 
+#  Returns a new RegionCondition projected 'n' years into the future based on the terrain and the population growth
 def project_condition(rc: RegionCondition, n: int) -> RegionCondition:
     if n == 0:
         return rc
